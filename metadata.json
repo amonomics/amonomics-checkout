@@ -1,0 +1,8 @@
+{
+  "name": "amonomics-checkout",
+  "description": "Secure, lightweight developer micro-funding platform for open-source sustainability with Stripe checkout and Gemini AI personalized thank-you notes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

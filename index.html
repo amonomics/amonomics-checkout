@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>amonomics-checkout — Open-Source Sustainability & Micro-Funding</title>
+    <meta name="description" content="Secure, lightweight developer micro-funding platform for open-source sustainability with Stripe checkout and Gemini AI personalized thank-you notes." />
+    <meta property="og:title" content="amonomics-checkout — Open-Source Sustainability & Micro-Funding" />
+    <meta property="og:description" content="Secure, lightweight developer micro-funding platform for open-source sustainability with Stripe checkout and Gemini AI personalized thank-you notes." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Error guard: Ignore Vite HMR WebSocket errors in iframe preview environment -->
+    <script>
+      (function() {
+        function isViteWsError(err) {
+          if (!err) return false;
+          var str = String(err.message || err.reason || err.stack || err);
+          return (
+            str.indexOf('WebSocket') !== -1 ||
+            str.indexOf('createWebSocketModuleRunnerTransport') !== -1 ||
+            str.indexOf('@vite/client') !== -1 ||
+            str.indexOf('failed to connect to websocket') !== -1
+          );
+        }
+
+        window.addEventListener('error', function(event) {
+          if (
+            isViteWsError(event.error) ||
+            isViteWsError(event.message) ||
+            (event.filename && event.filename.indexOf('@vite/client') !== -1)
+          ) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            return true;
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (isViteWsError(event.reason)) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+          }
+        }, true);
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-zinc-950 text-zinc-100 min-h-screen antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
