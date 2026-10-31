@@ -17,6 +17,7 @@ import { ReadmeBadgeModal } from './components/ReadmeBadgeModal';
 import { CorporateInvoiceModal } from './components/CorporateInvoiceModal';
 import { ChangelogTributeModal } from './components/ChangelogTributeModal';
 import { DigitalBackerPassModal } from './components/DigitalBackerPassModal';
+import { StripeSandboxHubModal } from './components/StripeSandboxHubModal';
 import { Project, Backer } from './types';
 import { Coffee, Github, Box, Code2, Building2, GitCommit, Shield, FileText } from 'lucide-react';
 
@@ -64,6 +65,8 @@ export default function App() {
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [activePassBacker, setActivePassBacker] = useState<Backer | null>(null);
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
+  const [isSandboxHubOpen, setIsSandboxHubOpen] = useState(false);
+  const [selectedTestCard, setSelectedTestCard] = useState<{ number: string; exp: string; cvc: string; type: string } | null>(null);
 
   // AI Recommendation applied states
   const [externalTierId, setExternalTierId] = useState<string | undefined>(undefined);
@@ -183,6 +186,7 @@ export default function App() {
         onOpenBadges={() => setIsBadgesOpen(true)}
         onOpenInvoice={() => setIsInvoiceOpen(true)}
         onOpenChangelog={() => setIsChangelogOpen(true)}
+        onOpenSandboxHub={() => setIsSandboxHubOpen(true)}
         onQuickDonate={scrollToTiers}
       />
 
@@ -288,10 +292,14 @@ export default function App() {
       {/* Modals & Drawers */}
       <CheckoutModal
         isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
+        onClose={() => {
+          setIsCheckoutOpen(false);
+          setSelectedTestCard(null);
+        }}
         project={selectedProject}
         checkoutData={checkoutData}
         onSuccess={handleCheckoutSuccess}
+        initialTestCard={selectedTestCard}
       />
 
       <ThankYouModal
@@ -346,6 +354,15 @@ export default function App() {
         isOpen={isPassModalOpen}
         onClose={() => setIsPassModalOpen(false)}
         backer={activePassBacker}
+      />
+
+      <StripeSandboxHubModal
+        isOpen={isSandboxHubOpen}
+        onClose={() => setIsSandboxHubOpen(false)}
+        onSelectTestCard={(card) => {
+          setSelectedTestCard(card);
+          setIsCheckoutOpen(true);
+        }}
       />
     </div>
   );

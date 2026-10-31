@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenBadges: () => void;
   onOpenInvoice: () => void;
   onOpenChangelog: () => void;
+  onOpenSandboxHub: () => void;
   onQuickDonate: () => void;
 }
 
@@ -27,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBadges,
   onOpenInvoice,
   onOpenChangelog,
+  onOpenSandboxHub,
   onQuickDonate,
 }) => {
   return (
@@ -120,6 +122,16 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <GitCommit className="w-3.5 h-3.5 text-purple-400" />
             <span>Changelog</span>
+          </button>
+
+          {/* Stripe Sandbox Hub button */}
+          <button
+            onClick={onOpenSandboxHub}
+            className="flex items-center space-x-1 px-2.5 py-1.5 text-xs font-mono font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
+            title="Stripe Sandbox Hub & Testing Lab"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Stripe Sandbox</span>
           </button>
 
           {/* Webhook tester button */}

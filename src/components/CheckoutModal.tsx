@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Lock, CreditCard, ShieldCheck, CheckCircle2, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Lock, CreditCard, ShieldCheck, CheckCircle2, Loader2, Sparkles, AlertCircle, RefreshCw, Check, Building2, ExternalLink } from 'lucide-react';
 import { Project, Backer } from '../types';
 
 interface CheckoutModalProps {
@@ -19,6 +19,7 @@ interface CheckoutModalProps {
     impactArea: string;
   };
   onSuccess: (backer: Backer) => void;
+  initialTestCard?: { number: string; exp: string; cvc: string; type: string } | null;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -27,6 +28,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   project,
   checkoutData,
   onSuccess,
+  initialTestCard,
 }) => {
   const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242');
   const [expiry, setExpiry] = useState('12/28');
@@ -35,17 +37,104 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [hostedCheckoutUrl, setHostedCheckoutUrl] = useState<string | null>(null);
 
+  // 3D Secure verification simulation state
+  const [show3DSModal, setShow3DSModal] = useState(false);
+  const [is3DSAuthenticating, setIs3DSAuthenticating] = useState(false);
+
+  useEffect(() => {
+    if (initialTestCard) {
+      setCardNumber(initialTestCard.number);
+      setExpiry(initialTestCard.exp);
+      setCvc(initialTestCard.cvc);
+    }
+  }, [initialTestCard]);
+
   if (!isOpen) return null;
+
+  const selectTestCardPreset = (type: 'success' | '3ds' | 'declined' | 'insufficient' | 'expired') => {
+    setErrorMessage(null);
+    setErrorDetails(null);
+    if (type === 'success') {
+      setCardNumber('4242 •••• •••• 4242');
+      setExpiry('12/28');
+      setCvc('123');
+      setZip('94103');
+    } else if (type === '3ds') {
+      setCardNumber('4000 •••• •••• 3184');
+      setExpiry('12/28');
+      setCvc('123');
+      setZip('94103');
+    } else if (type === 'declined') {
+      setCardNumber('4000 •••• •••• 0002');
+      setExpiry('12/28');
+      setCvc('123');
+      setZip('94103');
+    } else if (type === 'insufficient') {
+      setCardNumber('4000 •••• •••• 0115');
+      setExpiry('12/28');
+      setCvc('123');
+      setZip('94103');
+    } else if (type === 'expired') {
+      setCardNumber('4000 •••• •••• 0069');
+      setExpiry('01/20');
+      setCvc('123');
+      setZip('94103');
+    }
+  };
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
     setErrorMessage(null);
+    setErrorDetails(null);
 
+    // Normalize card digits
+    const digits = cardNumber.replace(/\D/g, '');
+
+    // Test Card Scenario 1: Declined Card (ending in 0002)
+    if (digits.endsWith('0002')) {
+      await new Promise((r) => setTimeout(r, 800));
+      setIsProcessing(false);
+      setErrorMessage('Your card was declined by the issuer.');
+      setErrorDetails('Stripe Error: card_declined (Decline Code: generic_decline). The cardholder should contact their issuing bank or use another card.');
+      return;
+    }
+
+    // Test Card Scenario 2: Insufficient Funds (ending in 0115)
+    if (digits.endsWith('0115')) {
+      await new Promise((r) => setTimeout(r, 800));
+      setIsProcessing(false);
+      setErrorMessage('Your card has insufficient funds.');
+      setErrorDetails('Stripe Error: insufficient_funds (Status 402 Payment Required). Please select a different payment card or add funds.');
+      return;
+    }
+
+    // Test Card Scenario 3: Expired Card (ending in 0069 or expiry year in the past)
+    if (digits.endsWith('0069') || expiry.endsWith('20') || expiry.endsWith('21')) {
+      await new Promise((r) => setTimeout(r, 600));
+      setIsProcessing(false);
+      setErrorMessage('Your card has expired.');
+      setErrorDetails('Stripe Error: expired_card (Status 400 Bad Request). The expiration date provided is in the past.');
+      return;
+    }
+
+    // Test Card Scenario 4: 3D Secure Strong Customer Authentication (SCA)
+    if (digits.endsWith('3184')) {
+      await new Promise((r) => setTimeout(r, 700));
+      setIsProcessing(false);
+      setShow3DSModal(true);
+      return;
+    }
+
+    // Standard Success Flow
+    await executeSuccessfulPayment();
+  };
+
+  const executeSuccessfulPayment = async () => {
     try {
-      // Step 1: Create checkout session via server Stripe API
       setProcessingStep('Creating secure Stripe session via API...');
       const sessionRes = await fetch('/api/checkout', {
         method: 'POST',
@@ -75,7 +164,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
 
       // Step 2: Simulate Stripe payment verification & authorization
-      setProcessingStep('Authorizing payment with Stripe network...');
+      setProcessingStep('Authorizing payment with Stripe test network...');
       await new Promise((r) => setTimeout(r, 900));
 
       // Step 3: Trigger Gemini AI appreciation generator
@@ -115,6 +204,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           isAnonymous: checkoutData.isAnonymous,
           customMessage: checkoutData.customMessage,
           impactArea: checkoutData.impactArea,
+          stripeSessionId: sessionData.sessionId,
           aiThankYouNote: aiNote,
         }),
       });
@@ -125,6 +215,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
 
       setIsProcessing(false);
+      setShow3DSModal(false);
       onSuccess(backerData.backer);
     } catch (err: any) {
       console.error('Payment flow failed:', err);
@@ -134,8 +225,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-lg rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-sm animate-fade-in overflow-y-auto">
+      <div className="relative w-full max-w-lg rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden my-6">
         {/* Header bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/60">
           <div className="flex items-center space-x-2">
@@ -143,7 +234,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               S
             </div>
             <span className="font-semibold text-white text-sm">
-              Stripe Checkout — {project.repo}
+              Stripe Sandbox Checkout — {project.repo}
             </span>
           </div>
 
@@ -157,7 +248,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
           {/* Order Summary Pill */}
           <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800/80 flex items-center justify-between">
             <div>
@@ -173,46 +264,68 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <span className="text-2xl font-black text-white font-mono">
                 ${checkoutData.amount}
               </span>
-              <span className="text-xs text-zinc-400 block">
+              <span className="text-xs text-zinc-400 block font-mono">
                 {checkoutData.frequency === 'monthly' ? '/month' : 'one-time'}
               </span>
             </div>
           </div>
 
-          {/* Test Mode Badge */}
-          <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>
-              <strong>Stripe Test Environment Active:</strong> Pre-filled with valid test token. No real billing occurs.
-            </span>
+          {/* Test Cards Quick-Fill Toolbar */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-zinc-400">Sandbox Test Scenarios:</span>
+              <span className="text-[10px] text-emerald-400 font-semibold">1-Click Autofill</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => selectTestCardPreset('success')}
+                className="px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer"
+              >
+                ✓ Success (Visa)
+              </button>
+              <button
+                type="button"
+                onClick={() => selectTestCardPreset('3ds')}
+                className="px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
+              >
+                ⚡ 3DS / SCA
+              </button>
+              <button
+                type="button"
+                onClick={() => selectTestCardPreset('declined')}
+                className="px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
+              >
+                ✕ Decline
+              </button>
+              <button
+                type="button"
+                onClick={() => selectTestCardPreset('insufficient')}
+                className="px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 border border-orange-500/30 transition-colors cursor-pointer"
+              >
+                $ Insufficient
+              </button>
+              <button
+                type="button"
+                onClick={() => selectTestCardPreset('expired')}
+                className="px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 transition-colors cursor-pointer"
+              >
+                ⌛ Expired
+              </button>
+            </div>
           </div>
 
-          {/* Quick Pay Buttons Simulation */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={isProcessing}
-              onClick={handlePay}
-              className="py-2.5 px-4 rounded-lg bg-zinc-800 hover:bg-zinc-700/80 text-white font-semibold text-xs border border-zinc-700 flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
-            >
-              <span>Pay</span>
-              <span className="text-zinc-400 font-normal">Express</span>
-            </button>
-            <button
-              type="button"
-              disabled={isProcessing}
-              onClick={handlePay}
-              className="py-2.5 px-4 rounded-lg bg-zinc-800 hover:bg-zinc-700/80 text-white font-semibold text-xs border border-zinc-700 flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
-            >
-              <span className="text-cyan-400 font-bold">G</span>
-              <span>Pay</span>
-            </button>
-          </div>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-zinc-800 w-full" />
-            <span className="bg-zinc-900 px-3 text-[11px] uppercase tracking-wider text-zinc-500 font-semibold absolute">
-              Or pay with card
+          {/* Business Profile Autofill Pill */}
+          <div className="p-3 rounded-lg bg-zinc-950/80 border border-zinc-800 text-xs flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="font-semibold text-white flex items-center space-x-1">
+                <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Merchant: Amonomics Open Source Technologies</span>
+              </span>
+              <p className="text-[10px] text-zinc-400 font-mono">Statement Descriptor: AMONOMICS*OSS</p>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              USD ($)
             </span>
           </div>
 
@@ -262,17 +375,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* Error Message */}
+            {/* Error Message with Stripe Diagnostics */}
             {errorMessage && (
-              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{errorMessage}</span>
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-1 animate-fade-in">
+                <div className="flex items-center space-x-2 font-bold text-rose-400">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+                {errorDetails && (
+                  <p className="text-[11px] text-rose-200/90 font-mono pl-6 leading-relaxed">
+                    {errorDetails}
+                  </p>
+                )}
               </div>
             )}
 
             {/* Processing State status */}
             {isProcessing && (
-              <div className="p-3.5 rounded-xl bg-zinc-950 border border-emerald-500/30 text-xs text-emerald-300 flex items-center space-x-3">
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-emerald-500/30 text-xs text-emerald-300 flex items-center space-x-3 animate-pulse">
                 <Loader2 className="w-4 h-4 animate-spin text-emerald-400 shrink-0" />
                 <span className="font-mono">{processingStep}</span>
               </div>
@@ -287,7 +407,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {isProcessing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Processing Checkout...</span>
+                  <span>Authorizing with Stripe Sandbox...</span>
                 </>
               ) : (
                 <>
@@ -316,6 +436,79 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 3D Secure Authentication Challenge Modal Simulation */}
+      {show3DSModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md rounded-2xl bg-zinc-900 border border-amber-500/50 shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <span className="font-bold text-sm text-white">
+                  Bank 3D Secure (SCA) Authentication
+                </span>
+              </div>
+              <button
+                onClick={() => setShow3DSModal(false)}
+                className="text-zinc-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs text-zinc-300">
+              <p>
+                Stripe requires Strong Customer Authentication (SCA) for this transaction:
+              </p>
+              <div className="p-3 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-[11px] space-y-1">
+                <div>Merchant: <strong>Amonomics Open Source Technologies</strong></div>
+                <div>Amount: <strong>${checkoutData.amount} USD</strong></div>
+                <div>Card: <strong>Visa ending in 3184</strong></div>
+              </div>
+              <p className="text-[11px] text-zinc-400">
+                Click <strong>"Simulate 3DS Complete"</strong> to authorize or <strong>"Fail 3DS"</strong> to test customer decline.
+              </p>
+            </div>
+
+            <div className="flex space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShow3DSModal(false);
+                  setErrorMessage('3D Secure verification failed or cancelled by user.');
+                  setErrorDetails('Stripe Error: authentication_required. The customer failed or abandoned the 3D Secure verification step.');
+                }}
+                className="flex-1 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-rose-300 transition-colors cursor-pointer"
+              >
+                Fail Challenge
+              </button>
+
+              <button
+                type="button"
+                disabled={is3DSAuthenticating}
+                onClick={async () => {
+                  setIs3DSAuthenticating(true);
+                  await executeSuccessfulPayment();
+                  setIs3DSAuthenticating(false);
+                }}
+                className="flex-1 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-xs font-bold text-zinc-950 shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                {is3DSAuthenticating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Authorizing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Simulate 3DS Complete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
